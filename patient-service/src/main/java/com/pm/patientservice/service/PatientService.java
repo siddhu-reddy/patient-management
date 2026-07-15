@@ -9,8 +9,10 @@ import com.pm.patientservice.kafka.kafkaProducer;
 import com.pm.patientservice.mapper.PatientMapper;
 import com.pm.patientservice.model.Patient;
 import com.pm.patientservice.repository.PatientRepository;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.time.LocalDate;
@@ -36,14 +38,16 @@ public class PatientService {
         return patients.stream().map(PatientMapper::toDTO).toList();
     }
 
+    @Transactional
     public PatientResponseDTO createPatient(PatientRequestDTO patientRequestDTO){
         if(patientRepository.existsByEmail(patientRequestDTO.getEmail())){
             throw new EmailAlreadyExistsException("Apatient with this email already exists"+ patientRequestDTO.getEmail());
         }
         Patient newPatient=patientRepository.save(PatientMapper.toModel(patientRequestDTO));
+        System.out.println("before calling billing service");
 
         billingServiceGrpcClient.createBillingAccount(newPatient.getId().toString(),newPatient.getName(),newPatient.getEmail());
-
+        System.out.println("After calling biiling service");
         kafkaProducer.sendEvent(newPatient);
 
         return PatientMapper.toDTO(newPatient);
@@ -64,7 +68,7 @@ public class PatientService {
         return PatientMapper.toDTO(updatedPatient);
 
     }
-    public void deltePatient(UUID id){
+    public void deletePatient(UUID id){
         patientRepository.deleteById(id);
     }
 }
